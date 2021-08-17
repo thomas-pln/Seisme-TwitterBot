@@ -1,0 +1,16 @@
+{
+  "name": "earthquwarkeralert",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^10.0.0",
+    "request": "^2.88.2",
+    "twit": "^2.2.11"
+  }
+}
