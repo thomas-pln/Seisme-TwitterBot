@@ -51,8 +51,8 @@ var date = new Date().toISOString().split('T')[0];
 
 const MAXIMAL_LATITUDE ='51.09';
 const MINIMAL_LONGITUDE = '-5.57';
-const MAXIMAL_LONGITUDE = '8.23';
-const MINIMAL_LATITUDE = '42.34';
+const MAXIMAL_LONGITUDE = '9.80';
+const MINIMAL_LATITUDE = '41.341';
 
 const URL = `https://api.franceseisme.fr/fdsnws/event/1/query?endtime=${date}T23:59:59.999999Z&format=json&maxlatitude=${MAXIMAL_LATITUDE}&maxlongitude=${MAXIMAL_LONGITUDE}&minlatitude=${MINIMAL_LATITUDE}&minlongitude=${MINIMAL_LONGITUDE}&orderby=time&starttime=${date}T00:00:00Z`;
 
@@ -109,11 +109,12 @@ const getEvents = () => {
   
       if(country['countryCode']=== 'FR'){
         var dateEvent = new Date(`${nd['properties']['time']}`);
+        dateEvent.setTi
         for(var od of oldData['features']){
             if(nd['id'] === od['id'] && nd['properties']['automatic'] != od['properties']['automatic']){
               //Evenement validé
               isIn = true;
-              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______`);
+              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______`);
               break;  
             }else if(nd['id'] === od['id'] && nd['properties']['automatic'] == od['properties']['automatic']){
               //Evenement déjà affiché
@@ -123,9 +124,9 @@ const getEvents = () => {
           }
           if(!isIn){
             if(nd['properties']['automatic']){
-              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}\n_______`);
+              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}\n_______`);
             }else{
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______`);
+                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______`);
             }
           }
       }
