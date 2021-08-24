@@ -94,10 +94,10 @@ const getEvents = () => {
   
     for await(var nd of newData['features']){
       var isIn = false;
-      //Récupération du pays à partir des coordonées pour vérifier que l'événement s'est bien produit en France
-      const URL = `http://api.geonames.org/countryCodeJSON?lat=${nd['properties']['latitude']}&lng=${nd['properties']['longitude']}&username=${process.env.USERNAME}`;
-      var country = await new Promise((resolve, reject) =>{
-        request.get(URL, {}, (error, res, body)=>{
+      //Récupération des données géographique à partir des coordonées
+      const URLGeo = `http://nominatim.openstreetmap.org/reverse?format=json&lat=${nd['properties']['latitude']}&lon=${nd['properties']['longitude']}&zoom=13`;
+      var geo = await new Promise((resolve, reject) =>{
+        request.get(URLGeo, {}, (error, res, body)=>{
             if (error) {
                 reject(error);
             }else{
@@ -105,16 +105,27 @@ const getEvents = () => {
             }
         });
       });
-      country = JSON.parse(country);
+      geo = JSON.parse(geo);
+      geo = geo['address'];
   
-      if(country['countryCode']=== 'FR'){
+      if(geo.country_code === 'fr' && nd.type != "quarry blast"){
+
+        var ville = undefined;
+        //Le point peut tomber sur une ville définit comme 'village' ou 'town' par OSM
+        if(Object.keys(geo).includes('town')){
+          ville = geo.town.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
+        }else if(Object.keys(geo).includes('village')){
+            ville = geo.village.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
+        }
+        var prefecture = geo.municipality.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
+        var departement = geo.county.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
+
         var dateEvent = new Date(`${nd['properties']['time']}`);
-        dateEvent.setTi
         for(var od of oldData['features']){
             if(nd['id'] === od['id'] && nd['properties']['automatic'] != od['properties']['automatic']){
               //Evenement validé
               isIn = true;
-              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______`);
+              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#${ville} #${prefecture} #${departement}`);
               break;  
             }else if(nd['id'] === od['id'] && nd['properties']['automatic'] == od['properties']['automatic']){
               //Evenement déjà affiché
@@ -123,10 +134,13 @@ const getEvents = () => {
             }
           }
           if(!isIn){
+            //Nouvel évennement
             if(nd['properties']['automatic']){
-              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}\n_______`);
+              //Nouvel évennement non vérifié
+              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}\n_______`);
             }else{
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1]} Longitude ${nd['geometry']['coordinates'][0]}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______`);
+              //Nouvel évennement vérifié
+                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#${ville} #${prefecture} #${departement}`);
             }
           }
       }
