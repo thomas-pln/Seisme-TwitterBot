@@ -52,7 +52,7 @@ var date = new Date().toISOString().split('T')[0];
 const MAXIMAL_LATITUDE ='51.09';
 const MINIMAL_LONGITUDE = '-5.57';
 const MAXIMAL_LONGITUDE = '9.80';
-const MINIMAL_LATITUDE = '41.341';
+const MINIMAL_LATITUDE = '41.34';
 
 const URL = `https://api.franceseisme.fr/fdsnws/event/1/query?endtime=${date}T23:59:59.999999Z&format=json&maxlatitude=${MAXIMAL_LATITUDE}&maxlongitude=${MAXIMAL_LONGITUDE}&minlatitude=${MINIMAL_LATITUDE}&minlongitude=${MINIMAL_LONGITUDE}&orderby=time&starttime=${date}T00:00:00Z`;
 
@@ -77,7 +77,7 @@ const getEvents = () => {
  * ainsi que ceux qui n'étaient pas validés lors de la vérification précédente.
  * Ecrase les anciennes données avec les nouvelles.
  */
- async function sismicEvents(msg){
+ async function sismicEvents(){
     var oldData = await new Promise((resolve, reject)=>{
       fs.readFile('./data/data.json', 'utf-8',(err, data)=>{
         if(err){
@@ -87,7 +87,7 @@ const getEvents = () => {
         }
       });
     })
-    newData = await getEvents();
+    var newData = await getEvents();
     newData = JSON.parse(newData);
     oldData = JSON.parse(oldData);  
   
@@ -108,24 +108,40 @@ const getEvents = () => {
       geo = JSON.parse(geo);
       geo = geo['address'];
   
-      if(geo.country_code === 'fr' && nd.type != "quarry blast"){
-
-        var ville = undefined;
+      if(geo.country_code === 'fr' && nd['properties']['type'] != "quarry blast"){
+        var ville ='#';
         //Le point peut tomber sur une ville définit comme 'village' ou 'town' par OSM
         if(Object.keys(geo).includes('town')){
-          ville = geo.town.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
+          ville += geo.town.replaceAll(" ","").replaceAll("-","").replaceAll("'","");
         }else if(Object.keys(geo).includes('village')){
-            ville = geo.village.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
+            ville += geo.village.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");
+        }else if(Object.keys(geo).includes('city')){
+          ville += geo.city.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");
         }
-        var prefecture = geo.municipality.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
-        var departement = geo.county.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");;
+        var prefecture = '#';
+        try{
+          prefecture += geo['municipality'].replaceAll(" ","").replaceAll("-","").replaceAll("'","");
+        }catch(e){
+          console.log(`err : pas de prefecture pour ${nd['id']}\n`+e);
+        }
+        var departement = '#';
+        try{
+          departement += geo['county'].replaceAll(" ","").replaceAll("-","").replaceAll("'","");
+        }catch(e){
+          console.log(`err : pas de département pour ${nd['id']}\n`+e);
+        }
+        
 
         var dateEvent = new Date(`${nd['properties']['time']}`);
         for(var od of oldData['features']){
             if(nd['id'] === od['id'] && nd['properties']['automatic'] != od['properties']['automatic']){
               //Evenement validé
               isIn = true;
-              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#${ville} #${prefecture} #${departement}`);
+              try{
+                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n${ville} ${prefecture} ${departement}`);
+              }catch(e){
+                console.log('err : post évenement validé\n'+e);
+              }
               break;  
             }else if(nd['id'] === od['id'] && nd['properties']['automatic'] == od['properties']['automatic']){
               //Evenement déjà affiché
@@ -136,11 +152,19 @@ const getEvents = () => {
           if(!isIn){
             //Nouvel évennement
             if(nd['properties']['automatic']){
+              try{
               //Nouvel évennement non vérifié
-              await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}\n_______`);
+                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}\n_______`);
+              }catch(e){
+                console.log('err : post nouvel évennement non vérifié\n'+e);
+              }
             }else{
+              try{
               //Nouvel évennement vérifié
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#${ville} #${prefecture} #${departement}`);
+                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n${ville} ${prefecture} ${departement}`);
+              }catch(e){
+                console.log('err : post Nouvel évennement vérifié\n'+e);
+              }
             }
           }
       }
