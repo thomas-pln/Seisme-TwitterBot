@@ -107,8 +107,16 @@ const getEvents = () => {
       });
       geo = JSON.parse(geo);
       geo = geo['address'];
-  
-      if(geo.country_code === 'fr' && nd['properties']['type'] != "quarry blast"){
+
+      //Pas de pays si l'évennement se produit dans les eaux internationales
+      var countryCode = '';
+      try{
+        countryCode = geo.country_code
+      }catch(e){
+        console.log(`Err: no country\n${e}`);
+      }
+
+      if(countryCode=== 'fr' && nd['properties']['type'] != "quarry blast"){
         var ville ='#';
         //Le point peut tomber sur une ville définit comme 'village' ou 'town' par OSM
         if(Object.keys(geo).includes('town')){
@@ -138,7 +146,7 @@ const getEvents = () => {
               //Evenement validé
               isIn = true;
               try{
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n${ville} ${prefecture} ${departement}`);
+                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
               }catch(e){
                 console.log('err : post évenement validé\n'+e);
               }
@@ -161,7 +169,7 @@ const getEvents = () => {
             }else{
               try{
               //Nouvel évennement vérifié
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n${ville} ${prefecture} ${departement}`);
+                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
               }catch(e){
                 console.log('err : post Nouvel évennement vérifié\n'+e);
               }
