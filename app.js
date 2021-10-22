@@ -3,6 +3,7 @@ const fs = require('fs');
 require('dotenv').config();
 
 const Twit = require('twit');
+const { debug } = require('console');
 
 const T = new Twit({
     consumer_key: process.env.TWIT_CONSUMER_KEY,
@@ -21,7 +22,7 @@ T.get('account/verify_credentials', {include_entities: false,
         console.log(err);
     }
 
-    console.log('Connecté avec succès.')
+    console.log(`Connecté avec succès. -- ${new Date().toString()}`)
 });
 
 /**
@@ -141,40 +142,55 @@ const getEvents = () => {
         
 
         var dateEvent = new Date(`${nd['properties']['time']}`);
-        for(var od of oldData['features']){
-            if(nd['id'] === od['id'] && nd['properties']['automatic'] != od['properties']['automatic']){
-              //Evenement validé
-              isIn = true;
-              try{
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
-              }catch(e){
-                console.log('err : post évenement validé\n'+e);
-              }
-              break;  
-            }else if(nd['id'] === od['id'] && nd['properties']['automatic'] == od['properties']['automatic']){
-              //Evenement déjà affiché
-              isIn = true;
-              break;
-            }
-          }
-          if(!isIn){
-            //Nouvel évennement
-            if(nd['properties']['automatic']){
-              try{
-              //Nouvel évennement non vérifié
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}\n_______`);
-              }catch(e){
-                console.log('err : post nouvel évennement non vérifié\n'+e);
-              }
-            }else{
-              try{
-              //Nouvel évennement vérifié
-                await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${dateEvent.getDate()}-${dateEvent.getMonth()}-${dateEvent.getFullYear()} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
-              }catch(e){
-                console.log('err : post Nouvel évennement vérifié\n'+e);
+
+        var day =dateEvent.getDate();
+        var month = monthStr(dateEvent.getMonth());
+        var year = dateEvent.getFullYear();
+        try{
+          for(var od of oldData['features']){
+
+              if(nd['id'] === od['id'] && nd['properties']['automatic'] != od['properties']['automatic']){
+                //Evenement validé
+                isIn = true;
+                try{
+                  if(ville != '#'){
+                    await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
+                  }else{
+                    await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme`);
+                  }
+                }catch(e){
+                  console.log('err : post évenement validé\n'+e);
+                }
+                break;  
+              }else if(nd['id'] === od['id'] && nd['properties']['automatic'] == od['properties']['automatic']){
+                //Evenement déjà affiché
+                isIn = true;
+                break;
               }
             }
-          }
+            if(!isIn){
+              //Nouvel évennement
+              if(nd['properties']['automatic']){
+                try{
+                //Nouvel évennement non vérifié
+                  await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}`);
+                }catch(e){
+                  console.log('err : post nouvel évennement non vérifié\n'+e);
+                }
+              }else{
+                try{
+                //Nouvel évennement vérifié
+                if(ville != '#'){
+                  await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
+                }else{
+                  await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme`);
+                }
+                }catch(e){
+                  console.log('err : post Nouvel évennement vérifié\n'+e);
+                }
+              }
+            }
+        }catch(e){console.error(e);}
       }
     }
     var updateFile = JSON.stringify(newData);
@@ -183,6 +199,21 @@ const getEvents = () => {
         console.log(`Error writing file: ${err}`);
       }
     });
+  }
+
+
+  /**
+   * Date.getMoth retourne le n° du mois entre 0 et 11 (1: Janv., 11: Déc.)
+   * @param {*} month 
+   * @returns 
+   */
+  function monthStr(month){
+    month++;
+    if(month<10){
+      return `0${month}`;
+    }else{
+      return month
+    }
   }
 
 sismicEvents();

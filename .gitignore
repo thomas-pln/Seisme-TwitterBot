@@ -4,3 +4,5 @@ package-lock.json
 node_modules
 .env
 .data/
+twitBotSeisme-out.log
+twitBotSeisme-error.log
