@@ -1,6 +1,7 @@
 const Twitter = require('twit');
 const axios = require('axios');
-var buildUrl = require('build-url');
+const buildUrl = require('build-url');
+const SeismicDB = require('./db');
 require('dotenv').config();
 
 const MAXIMAL_LATITUDE = '51.09';
@@ -14,6 +15,8 @@ const FS_API_PATH = 'fdsnws/event/1/query';
 const GEO_API_HOST = 'http://nominatim.openstreetmap.org';
 const GEO_API_PATH = 'reverse';
 
+const DB = new SeismicDB();
+
 const twitter = new Twitter({
     consumer_key: process.env.TWIT_CONSUMER_KEY,
     consumer_secret: process.env.TWIT_CONSUMER_SECRET,
@@ -24,7 +27,7 @@ const twitter = new Twitter({
 /**
  * Vérification de la connexion token - API
  */
- twitter.get('account/verify_credentials', {
+twitter.get('account/verify_credentials', {
     include_entities: false,
     skip_status: true,
     include_email: false
@@ -40,40 +43,80 @@ const main = async () => {
     let events = await getEvents();
 
     for (let event of events) {
-        let tweetContent = '';
-        let eventDate = new Date(event.properties.time);
+        let dbEvent = await DB.getEvent(event.id);
 
-        tweetContent += `💥 ${event.properties.description.fr}\n`;
-        tweetContent += `⏰ ${eventDate.toLocaleDateString()} à ${formatTime(eventDate)}\n`;
-        tweetContent += `🧭 Latitude ${event.geometry.coordinates[1].toFixed(2)} Longitude ${event.geometry.coordinates[0].toFixed(2)}\n`;
-        tweetContent += `💻 ${event.properties.url.fr}\n`;
-        tweetContent += '_______\n'
-        tweetContent += await getTags(event);
-
-        twitter.post(
-            'statuses/update',
-            { status: tweetContent },
-            (err, _) => {
-                if (err) console.log(err);
-                else console.log(`Tweet succesfully sent. Event id: ${event.id}`);
-            }
-        );
+        if (!dbEvent) tweetNewEvent(event);
+        else if (dbEvent && !dbEvent.validated && !event.properties.automatic && event.properties.type != 'quarry blast') 
+            tweetValidatedEvent(event, dbEvent.tweetURL);
     }
 }
 
 /**
- * Get seismic events of the last minute, from France Seisme API
+ * Tweet for the new event and store it in db
+ *  @param {*} event Seismic event
+ */
+const tweetNewEvent = (event) => {
+    let tweetContent = createBasicTweetContent(event);
+    tweetContent += '\nVérifié: ⏳ (En attente de validation)';
+    let eventTime = (new Date(event.properties.time)).getTime();
+
+    DB.insertEvent(event.id, 'https://ecobosto.fr', eventTime);
+    postTweet(tweetContent);
+}
+
+/**
+ * Tweet for the validated event and store it in db
+ *  @param {*} event Seismic event
+ */
+const tweetValidatedEvent = (event, tweetURL) => {
+    let tweetContent = createBasicTweetContent(event);
+    tweetContent += '\nVérifié: ✅';
+    tweetContent += '\n_______\n'
+    tweetContent += await createTags(event);
+    tweetContent += '\n' + tweetURL;
+
+    DB.removeEvent(event.id);
+    postTweet(tweetContent);
+}
+
+/**
+ * Create the basic tweet content
+ * @param {*} event 
+ * @returns Basic tweet contant
+ */
+const createBasicTweetContent = (event) => {
+    let tweetContent = '';
+    let eventDate = new Date(event.properties.time);
+
+    tweetContent += `💥 ${event.properties.description.fr}\n`;
+    tweetContent += `⏰ ${eventDate.toLocaleDateString()} à ${formatTime(eventDate)}\n`;
+    tweetContent += `🧭 Latitude ${event.geometry.coordinates[1].toFixed(2)} Longitude ${event.geometry.coordinates[0].toFixed(2)}\n`;
+    tweetContent += `💻 ${event.properties.url.fr}`;
+    return tweetContent;
+}
+
+/**
+ * Post a tweet
+ * @param {string} tweetContent 
+ */
+const postTweet = (tweetContent) => {
+    twitter.post(
+        'statuses/update',
+        { status: tweetContent },
+        (err, _) => {
+            if (err) console.log(err);
+            else console.log(`Tweet succesfully sent`);
+        }
+    );
+}
+
+/**
+ * Get seismic events of the last 5 days
  * @returns Seismic events
  */
 const getEvents = async () => {
-    let starttime = new Date();
-    starttime.setMinutes((new Date()).getMinutes() - 1);
-    starttime.setSeconds(0);
-    starttime.setMilliseconds(0);
-
     let endtime = new Date();
-    endtime.setSeconds(0);
-    endtime.setMilliseconds(0);
+    let starttime = new Date(endtime.getTime() - 86400000 * 5); // 5 days ago
 
     const URL = buildUrl(FS_API_HOST, {
         path: FS_API_PATH,
@@ -97,7 +140,7 @@ const getEvents = async () => {
  * @param {*} event Seismic event
  * @returns string tags
  */
-const getTags = async (event) => {
+const createTags = async (event) => {
     const URL = buildUrl(GEO_API_HOST, {
         path: GEO_API_PATH,
         queryParams: {
@@ -114,10 +157,19 @@ const getTags = async (event) => {
     let prefecture = res.municipality;
     let departement = res.county;
 
-    return `${city ? '#' + formatTag(city) + ' ' : ''}${prefecture ? '#' + formatTag(prefecture) + ' ' : ''}${departement ? '#' + formatTag(departement) : ''}`
+    return `${city ? `#${formatTag(city)} ` : ''}${prefecture ? `#${formatTag(prefecture)} ` : ''}${departement ? '#' + formatTag(departement) : ''}`
+}
+
+/**
+ * Remove from the db all unvalidated events, older than 5 days
+ */
+const cleanOldNoValidatedEvents = async () => {
+    let limitDate = new Date(new Date().getTime() - 86400000 * 5); // 5 days ago
+    DB.removeOldEvents(limitDate);
 }
 
 const formatTag = (tag) => tag.replaceAll(" ", "").replaceAll("-", "").replaceAll("'", "");
-const formatTime = (date) => date.toLocaleTimeString().replace(':', 'h').substring(0,5);
+const formatTime = (date) => date.toLocaleTimeString().replace(':', 'h').substring(0, 5);
 
-setInterval(main(), 60000);
+setInterval(main, 60000); // Every minute
+setInterval(cleanOldNoValidatedEvents, 86400000); // Every day

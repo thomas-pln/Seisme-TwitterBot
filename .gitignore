@@ -5,3 +5,6 @@ node_modules
 .data/
 twitBotSeisme-out.log
 twitBotSeisme-error.log
+.DS_Store
+events.db
+test.js
