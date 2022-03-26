@@ -1,11 +1,20 @@
-const request = require('request');
-const fs = require('fs');
+const Twitter = require('twit');
+const axios = require('axios');
+var buildUrl = require('build-url');
 require('dotenv').config();
 
-const Twit = require('twit');
-const { debug } = require('console');
+const MAXIMAL_LATITUDE = '51.09';
+const MAXIMAL_LONGITUDE = '9.80';
+const MINIMAL_LATITUDE = '41.34';
+const MINIMAL_LONGITUDE = '-5.57';
 
-const T = new Twit({
+const FS_API_HOST = 'https://api.franceseisme.fr/';
+const FS_API_PATH = 'fdsnws/event/1/query';
+
+const GEO_API_HOST = 'http://nominatim.openstreetmap.org';
+const GEO_API_PATH = 'reverse';
+
+const twitter = new Twitter({
     consumer_key: process.env.TWIT_CONSUMER_KEY,
     consumer_secret: process.env.TWIT_CONSUMER_SECRET,
     access_token: process.env.TWIT_ACCESS_TOKEN,
@@ -15,205 +24,100 @@ const T = new Twit({
 /**
  * Vérification de la connexion token - API
  */
-T.get('account/verify_credentials', {include_entities: false,
+ twitter.get('account/verify_credentials', {
+    include_entities: false,
     skip_status: true,
-    include_email: false}, (err, ress)=>{
-    if(err){
-        console.log(err);
-    }
-
+    include_email: false
+}, (err, _) => {
+    if (err) console.log(err);
     console.log(`Connecté avec succès. -- ${new Date().toString()}`)
 });
 
 /**
- * Fonction d'envoi d'un tweet
- * @param {*} content contenu du tweet (txt/emote)
+ * Get seismic events of the last minute and tweet it
  */
-const postStatus = (content)=>{
-    return new Promise((resolve, reject)=>{
-        T.post('statuses/update', {status:content}, (err, ress)=>{
-            if(err){
-                reject(err)
-            }else{
-                resolve();
+const main = async () => {
+    let events = await getEvents();
+
+    for (let event of events) {
+        let tweetContent = '';
+        let eventDate = new Date(event.properties.time);
+
+        tweetContent += `💥 ${event.properties.description.fr}\n`;
+        tweetContent += `⏰ ${eventDate.toLocaleDateString()} à ${formatTime(eventDate)}\n`;
+        tweetContent += `🧭 Latitude ${event.geometry.coordinates[1].toFixed(2)} Longitude ${event.geometry.coordinates[0].toFixed(2)}\n`;
+        tweetContent += `💻 ${event.properties.url.fr}\n`;
+        tweetContent += '_______\n'
+        tweetContent += await getTags(event);
+
+        twitter.post(
+            'statuses/update',
+            { status: tweetContent },
+            (err, _) => {
+                if (err) console.log(err);
+                else console.log(`Tweet succesfully sent. Event id: ${event.id}`);
             }
-        })
-    }) 
-};
-
-/*
-Format : YYYY-MM-DDTHH:MM:SSZ
-Year - Month - Day T Hour : Minute : Second Z
-*/
-//const START_TIME ='2021-08-10T00:00:00Z'; 
-//const END_TIME = '2021-08-13T23:59:59.99Z';
-
-var date = new Date().toISOString().split('T')[0];
-
-const MAXIMAL_LATITUDE ='51.09';
-const MINIMAL_LONGITUDE = '-5.57';
-const MAXIMAL_LONGITUDE = '9.80';
-const MINIMAL_LATITUDE = '41.34';
-
-const URL = `https://api.franceseisme.fr/fdsnws/event/1/query?endtime=${date}T23:59:59.999999Z&format=json&maxlatitude=${MAXIMAL_LATITUDE}&maxlongitude=${MAXIMAL_LONGITUDE}&minlatitude=${MINIMAL_LATITUDE}&minlongitude=${MINIMAL_LONGITUDE}&orderby=time&starttime=${date}T00:00:00Z`;
-
-/**
- * Requête et récupère la liste actualisée des événements de la journée courante
- * @returns
- */
-const getEvents = () => {
-    return new Promise((resolve, reject) =>{
-        request.get(URL, {}, (err, res, body)=>{
-            if (err) {
-                reject(err);
-            }else{
-                resolve(body);
-            }
-        });
-    });
+        );
+    }
 }
 
 /**
- * Tweet tous les nouveaux évennements ne se trouvant pas dans ./data/data.json 
- * ainsi que ceux qui n'étaient pas validés lors de la vérification précédente.
- * Ecrase les anciennes données avec les nouvelles.
+ * Get seismic events of the last minute, from France Seisme API
+ * @returns Seismic events
  */
- async function sismicEvents(){
-    var oldData = await new Promise((resolve, reject)=>{
-      fs.readFile('./data/data.json', 'utf-8',(err, data)=>{
-        if(err){
-          reject(err);
-        }else{
-          resolve(data)
-        }
-      });
-    })
-    var newData = await getEvents();
-    newData = JSON.parse(newData);
-    oldData = JSON.parse(oldData);  
-  
-  
-    for await(var nd of newData['features']){
-      var isIn = false;
-      //Récupération des données géographique à partir des coordonées
-      const URLGeo = `http://nominatim.openstreetmap.org/reverse?format=json&lat=${nd['properties']['latitude']}&lon=${nd['properties']['longitude']}&zoom=13`;
-      var geo = await new Promise((resolve, reject) =>{
-        request.get(URLGeo, {}, (error, res, body)=>{
-            if (error) {
-                reject(error);
-            }else{
-                resolve(body);
-            }
-        });
-      });
-      geo = JSON.parse(geo);
-      geo = geo['address'];
+const getEvents = async () => {
+    let starttime = new Date();
+    starttime.setMinutes((new Date()).getMinutes() - 1);
+    starttime.setSeconds(0);
+    starttime.setMilliseconds(0);
 
-      //Pas de pays si l'évennement se produit dans les eaux internationales
-      var countryCode = '';
-      try{
-        countryCode = geo.country_code
-      }catch(e){
-        console.log(`Err: no country\n${e}`);
-      }
+    let endtime = new Date();
+    endtime.setSeconds(0);
+    endtime.setMilliseconds(0);
 
-      if(countryCode=== 'fr' && nd['properties']['type'] != "quarry blast"){
-        var ville ='#';
-        //Le point peut tomber sur une ville définit comme 'village' ou 'town' par OSM
-        if(Object.keys(geo).includes('town')){
-          ville += geo.town.replaceAll(" ","").replaceAll("-","").replaceAll("'","");
-        }else if(Object.keys(geo).includes('village')){
-            ville += geo.village.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");
-        }else if(Object.keys(geo).includes('city')){
-          ville += geo.city.replaceAll(" ", "").replaceAll("-","").replaceAll("'","");
-        }
-        var prefecture = '#';
-        try{
-          prefecture += geo['municipality'].replaceAll(" ","").replaceAll("-","").replaceAll("'","");
-        }catch(e){
-          console.log(`err : pas de prefecture pour ${nd['id']}\n`+e);
-        }
-        var departement = '#';
-        try{
-          departement += geo['county'].replaceAll(" ","").replaceAll("-","").replaceAll("'","");
-        }catch(e){
-          console.log(`err : pas de département pour ${nd['id']}\n`+e);
-        }
-        
-
-        var dateEvent = new Date(`${nd['properties']['time']}`);
-
-        var day =dateEvent.getDate();
-        var month = monthStr(dateEvent.getMonth());
-        var year = dateEvent.getFullYear();
-        try{
-          for(var od of oldData['features']){
-
-              if(nd['id'] === od['id'] && nd['properties']['automatic'] != od['properties']['automatic']){
-                //Evenement validé
-                isIn = true;
-                try{
-                  if(ville != '#'){
-                    await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
-                  }else{
-                    await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme`);
-                  }
-                }catch(e){
-                  console.log('err : post évenement validé\n'+e);
-                }
-                break;  
-              }else if(nd['id'] === od['id'] && nd['properties']['automatic'] == od['properties']['automatic']){
-                //Evenement déjà affiché
-                isIn = true;
-                break;
-              }
-            }
-            if(!isIn){
-              //Nouvel évennement
-              if(nd['properties']['automatic']){
-                try{
-                //Nouvel évennement non vérifié
-                  await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ⌛ (en attente de validation) \n💻 ${nd['properties']['url']['fr']}`);
-                }catch(e){
-                  console.log('err : post nouvel évennement non vérifié\n'+e);
-                }
-              }else{
-                try{
-                //Nouvel évennement vérifié
-                if(ville != '#'){
-                  await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme ${ville} ${prefecture} ${departement}`);
-                }else{
-                  await postStatus(`💥 ${nd['properties']['description']['fr']}\n⏰ ${day}-${month}-${year} à ${dateEvent.getHours()+2}:${dateEvent.getMinutes()}\n🧭 Latitude ${nd['geometry']['coordinates'][1].toFixed(2)} Longitude ${nd['geometry']['coordinates'][0].toFixed(2)}\nVérifié: ✅\n💻 ${nd['properties']['url']['fr']}\n_______\n#Séisme`);
-                }
-                }catch(e){
-                  console.log('err : post Nouvel évennement vérifié\n'+e);
-                }
-              }
-            }
-        }catch(e){console.error(e);}
-      }
-    }
-    var updateFile = JSON.stringify(newData);
-    await fs.writeFile('./data/data.json', updateFile, 'utf8', (err)=>{
-      if(err){
-        console.log(`Error writing file: ${err}`);
-      }
+    const URL = buildUrl(FS_API_HOST, {
+        path: FS_API_PATH,
+        queryParams: {
+            format: 'json',
+            orderby: 'time',
+            maxlatitude: MAXIMAL_LATITUDE,
+            maxlongitude: MAXIMAL_LONGITUDE,
+            minlatitude: MINIMAL_LATITUDE,
+            minlongitude: MINIMAL_LONGITUDE,
+            starttime: starttime.toISOString(),
+            endtime: endtime.toISOString(),
+        },
     });
-  }
 
+    return (await axios.default.get(URL)).data.features;
+}
 
-  /**
-   * Date.getMoth retourne le n° du mois entre 0 et 11 (1: Janv., 11: Déc.)
-   * @param {*} month 
-   * @returns 
-   */
-  function monthStr(month){
-    month++;
-    if(month<10){
-      return `0${month}`;
-    }else{
-      return month
-    }
-  }
+/**
+ * Allows to generate the twitter tags from a seismic event
+ * @param {*} event Seismic event
+ * @returns string tags
+ */
+const getTags = async (event) => {
+    const URL = buildUrl(GEO_API_HOST, {
+        path: GEO_API_PATH,
+        queryParams: {
+            format: 'json',
+            lat: event.properties.latitude,
+            lon: event.properties.longitude,
+            zoom: 13,
+        },
+    });
 
-sismicEvents();
+    let res = (await axios.default.get(URL)).data.address;
+
+    let city = res.village || res.city || res.town;
+    let prefecture = res.municipality;
+    let departement = res.county;
+
+    return `${city ? '#' + formatTag(city) + ' ' : ''}${prefecture ? '#' + formatTag(prefecture) + ' ' : ''}${departement ? '#' + formatTag(departement) : ''}`
+}
+
+const formatTag = (tag) => tag.replaceAll(" ", "").replaceAll("-", "").replaceAll("'", "");
+const formatTime = (date) => date.toLocaleTimeString().replace(':', 'h').substring(0,5);
+
+setInterval(main(), 60000);
