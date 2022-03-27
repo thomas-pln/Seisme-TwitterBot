@@ -53,8 +53,8 @@ const main = async () => {
         let dbEvent = await DB.getEvent(event.id);
 
         if (!dbEvent) tweetNewEvent(event);
-        else if (dbEvent && !dbEvent.validated && !event.properties.automatic && event.properties.type != 'quarry blast') 
-            tweetValidatedEvent(event, dbEvent.tweetURL);
+        else if (dbEvent && !event.properties.automatic && event.properties.type != 'quarry blast')
+            tweetValidatedEvent(event, dbEvent.tweetID);
     }
 }
 
@@ -68,15 +68,16 @@ const tweetNewEvent = async (event) => {
     let eventTime = (new Date(event.properties.time)).getTime();
 
     console.log(`TWEET NEW EVENT: ${event.id}`);
-    let tweetURL = await postTweet(tweetContent);
-    DB.insertEvent(event.id, tweetURL, eventTime);
+    let tweetID = await postTweet(tweetContent);
+    DB.insertEvent(event.id, tweetID, eventTime);
 }
 
 /**
  * Tweet for the validated event and store it in db
  *  @param {*} event Seismic event
+ *  @param {string} tweetID Initial tweet of the event
  */
-const tweetValidatedEvent = async (event, tweetURL) => {
+const tweetValidatedEvent = async (event, tweetID) => {
     let tweetContent = createBasicTweetContent(event);
     tweetContent += '\nVérifié: ✅';
     tweetContent += '\n_______\n'
@@ -84,7 +85,7 @@ const tweetValidatedEvent = async (event, tweetURL) => {
 
     console.log(`TWEET VALIDATED EVENT: ${event.id}`);
     DB.removeEvent(event.id);
-    await postTweet(tweetContent, tweetURL);
+    await postTweet(tweetContent, tweetID);
 }
 
 /**
@@ -105,21 +106,22 @@ const createBasicTweetContent = (event) => {
 
 /**
  * Post a tweet
- * @param {string} tweetContent 
+ * @param {string} tweetContents
+ * @param {string} tweetID 
  */
-const postTweet = (tweetContent, tweetURL) => {
+const postTweet = (tweetContent, tweetID) => {
     return new Promise((resolve, _) => {
         twitter.post(
             'statuses/update',
-            { 
+            {
                 status: tweetContent,
-                attachment_url: tweetURL,
+                attachment_url: tweetID ? `https://twitter.com/${BOT_NAME}/status/${tweetID}` : undefined,
             },
             (err, data) => {
                 if (err) console.log(err);
                 else {
                     console.log(`Tweet succesfully sent`);
-                    resolve(`https://twitter.com/${BOT_NAME}/status/${data.id_str}`);
+                    resolve(data.id_str);
                 }
             }
         );

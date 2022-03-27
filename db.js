@@ -20,7 +20,7 @@ class SeismicDB {
             this.#DB.run(`
             CREATE TABLE events (
                 id TEXT PRIMARY KEY NOT NULL,
-                tweetURL TEXT NOT NULL,
+                tweetID TEXT NOT NULL,
                 date REAL NOT NULL
             );
             `);
@@ -64,15 +64,15 @@ class SeismicDB {
     /**
      * Allows to insert an event in DB
      * @param {string} id 
-     * @param {string} tweetURL 
+     * @param {string} tweetID 
      * @param {number} date 
      */
-    insertEvent(id, tweetURL, date) {
-        console.log(`INSERT: ${id} ${tweetURL}`);
+    insertEvent(id, tweetID, date) {
+        console.log(`INSERT: eventId=${id} tweetId=${tweetID}`);
         this.#DB.run(`
-            INSERT INTO events (id, tweetURL, date)
+            INSERT INTO events (id, tweetID, date)
             VALUES (?, ?, ?)
-        `, [id, tweetURL, date]);
+        `, [id, tweetID, date]);
     }
 
     /**
