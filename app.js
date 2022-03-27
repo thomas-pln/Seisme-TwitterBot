@@ -82,7 +82,7 @@ const tweetValidatedEvent = async (event, tweetURL) => {
     tweetContent += '\n_______\n'
     tweetContent += await createTags(event);
 
-    console.log(`TWEET VALADATED EVENT: ${event.id}`);
+    console.log(`TWEET VALIDATED EVENT: ${event.id}`);
     DB.removeEvent(event.id);
     await postTweet(tweetContent, tweetURL);
 }
