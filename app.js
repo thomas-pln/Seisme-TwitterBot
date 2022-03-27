@@ -49,6 +49,7 @@ const main = async () => {
     let events = await getEvents();
 
     for (let event of events) {
+        console.log("Try get: " + event.id);
         let dbEvent = await DB.getEvent(event.id);
 
         if (!dbEvent) tweetNewEvent(event);
@@ -66,6 +67,7 @@ const tweetNewEvent = async (event) => {
     tweetContent += '\nVérifié: ⏳ (En attente de validation)';
     let eventTime = (new Date(event.properties.time)).getTime();
 
+    console.log(`TWEET NEW EVENT: ${event.id}`);
     let tweetURL = await postTweet(tweetContent);
     DB.insertEvent(event.id, tweetURL, eventTime);
 }
@@ -79,10 +81,10 @@ const tweetValidatedEvent = async (event, tweetURL) => {
     tweetContent += '\nVérifié: ✅';
     tweetContent += '\n_______\n'
     tweetContent += await createTags(event);
-    tweetContent += '\n' + tweetURL;
 
+    console.log(`TWEET VALADATED EVENT: ${event.id}`);
     DB.removeEvent(event.id);
-    await postTweet(tweetContent);
+    await postTweet(tweetContent, tweetURL);
 }
 
 /**
@@ -105,11 +107,14 @@ const createBasicTweetContent = (event) => {
  * Post a tweet
  * @param {string} tweetContent 
  */
-const postTweet = (tweetContent) => {
+const postTweet = (tweetContent, tweetURL) => {
     return new Promise((resolve, _) => {
         twitter.post(
             'statuses/update',
-            { status: tweetContent },
+            { 
+                status: tweetContent,
+                attachment_url: tweetURL,
+            },
             (err, data) => {
                 if (err) console.log(err);
                 else {

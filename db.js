@@ -40,7 +40,10 @@ class SeismicDB {
                 WHERE id = ?
             `, id, (err, result) => {
                 if (err) console.log(err);
-                else resolve(result)
+                else {
+                    console.log(`GET: ${result}`);
+                    resolve(result)
+                }
             }
             );
         });
@@ -51,6 +54,7 @@ class SeismicDB {
      * @param {number} limitDate 
      */
     removeOldEvents(limitDate) {
+        console.log("DELETE old Events");
         this.#DB.run(`
             DELETE FROM events
             WHERE date < ?
@@ -64,6 +68,7 @@ class SeismicDB {
      * @param {number} date 
      */
     insertEvent(id, tweetURL) {
+        console.log(`INSERT: ${id} ${tweetURL}`);
         this.#DB.run(`
             INSERT INTO events (id, tweetURL, date)
             VALUES (?, ?, ?)
@@ -75,6 +80,7 @@ class SeismicDB {
      * @param {string} id
      */
     removeEvent(id) {
+        console.log(`DELETE: ${id}`);
         this.#DB.run(`
             DELETE FROM events
             WHERE id = ?
