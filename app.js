@@ -49,7 +49,6 @@ const main = async () => {
     let events = await getEvents();
 
     for (let event of events) {
-        console.log("Try get: " + event.id);
         let dbEvent = await DB.getEvent(event.id);
 
         if (!dbEvent) tweetNewEvent(event);

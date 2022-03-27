@@ -41,7 +41,6 @@ class SeismicDB {
             `, id, (err, result) => {
                 if (err) console.log(err);
                 else {
-                    console.log(`GET: ${result}`);
                     resolve(result)
                 }
             }
