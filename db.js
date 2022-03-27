@@ -67,7 +67,7 @@ class SeismicDB {
      * @param {string} tweetURL 
      * @param {number} date 
      */
-    insertEvent(id, tweetURL) {
+    insertEvent(id, tweetURL, date) {
         console.log(`INSERT: ${id} ${tweetURL}`);
         this.#DB.run(`
             INSERT INTO events (id, tweetURL, date)
