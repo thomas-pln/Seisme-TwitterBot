@@ -51,9 +51,17 @@ const main = async () => {
     for (let event of events) {
         let dbEvent = await DB.getEvent(event.id);
 
-        if (!dbEvent) tweetNewEvent(event);
-        else if (dbEvent && !event.properties.automatic && event.properties.type != 'quarry blast')
+        // New event
+        if (!dbEvent && event.properties.automatic) 
+            tweetNewEvent(event);
+
+        // Validated event
+        else if (dbEvent && !event.properties.automatic && event.properties.type != 'quarry blast' && !dbEvent.validated)
             tweetValidatedEvent(event, dbEvent.tweetID);
+        
+        // New validated event
+        else if (!dbEvent && !event.properties.automatic && event.properties.type != 'quarry blast')
+            tweetValidatedEvent(event);
     }
 }
 
@@ -68,7 +76,7 @@ const tweetNewEvent = async (event) => {
 
     console.log(`TWEET NEW EVENT: ${event.id}`);
     let tweetID = await postTweet(tweetContent);
-    DB.insertEvent(event.id, tweetID, eventTime);
+    DB.insertEvent(event.id, tweetID, eventTime, false);
 }
 
 /**
@@ -83,8 +91,13 @@ const tweetValidatedEvent = async (event, tweetID) => {
     tweetContent += await createTags(event);
 
     console.log(`TWEET VALIDATED EVENT: ${event.id}`);
-    DB.removeEvent(event.id);
-    await postTweet(tweetContent, tweetID);
+    let newTweetID = await postTweet(tweetContent, tweetID);
+
+    if (tweetID) DB.setEventValidated(event.id);
+    else {
+        let eventTime = (new Date(event.properties.time)).getTime();
+        DB.insertEvent(event.id, newTweetID, eventTime, true);
+    }
 }
 
 /**
@@ -133,9 +146,9 @@ const postTweet = (tweetContent, tweetID) => {
  */
 const getEvents = async () => {
     let endtime = new Date();
-    let starttime = new Date(endtime.getTime() - 86400000 * 5); // 5 days ago
+    let starttime = new Date(endtime.getTime() - 86400000 * 4); // 4 days ago
 
-    // To not tweet all events from 5 days ago, when starting the bot
+    // To not tweet all events from 4 days ago, when starting the bot
     starttime = starttime < LAUNCH_TIME ? LAUNCH_TIME : starttime;
 
     const URL = buildUrl(FS_API_HOST, {
@@ -192,4 +205,4 @@ const formatTag = (tag) => tag.replaceAll(" ", "").replaceAll("-", "").replaceAl
 const formatTime = (date) => date.toLocaleTimeString().replace(':', 'h').substring(0, 5);
 
 setInterval(main, 60000); // Every minute
-setInterval(cleanOldNoValidatedEvents, 86400000); // Every day
+setInterval(cleanOldNoValidatedEvents, 86400000 / 2); // 2 times per day

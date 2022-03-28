@@ -21,7 +21,8 @@ class SeismicDB {
             CREATE TABLE events (
                 id TEXT PRIMARY KEY NOT NULL,
                 tweetID TEXT NOT NULL,
-                date REAL NOT NULL
+                date REAL NOT NULL,
+                validated BOOLEAN NOT NULL
             );
             `);
         });
@@ -40,9 +41,7 @@ class SeismicDB {
                 WHERE id = ?
             `, id, (err, result) => {
                 if (err) console.log(err);
-                else {
-                    resolve(result)
-                }
+                else resolve(result);
             }
             );
         });
@@ -65,13 +64,14 @@ class SeismicDB {
      * @param {string} id 
      * @param {string} tweetID 
      * @param {number} date 
+     * @param {boolean} validated
      */
-    insertEvent(id, tweetID, date) {
-        console.log(`INSERT: eventId=${id} tweetId=${tweetID}`);
+    insertEvent(id, tweetID, date, validated) {
+        console.log(`INSERT: eventId=${id} tweetId=${tweetID} validated=${validated}`);
         this.#DB.run(`
-            INSERT INTO events (id, tweetID, date)
-            VALUES (?, ?, ?)
-        `, [id, tweetID, date]);
+            INSERT INTO events (id, tweetID, date, validated)
+            VALUES (?, ?, ?, ?)
+        `, [id, tweetID, date, validated]);
     }
 
     /**
@@ -82,6 +82,19 @@ class SeismicDB {
         console.log(`DELETE: ${id}`);
         this.#DB.run(`
             DELETE FROM events
+            WHERE id = ?
+        `, id);
+    }
+
+    /**
+     * Allows to set validated = true of a specific event
+     * @param {string} id 
+     */
+    setEventValidated(id) {
+        console.log(`SET VALIDATED: ${id}`);
+        this.#DB.run(`
+            UPDATE events
+            SET validated = true
             WHERE id = ?
         `, id);
     }
