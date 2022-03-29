@@ -27,6 +27,8 @@ const twitter = new Twitter({
     access_token_secret: process.env.TWIT_ACCESS_TOKEN_SECRET
 });
 
+console.log('Node version: ' + process.version);
+
 /**
  * Vérification de la connexion token - API
  */
