@@ -18,6 +18,8 @@ const GEO_API_PATH = 'reverse';
 const LAUNCH_TIME = new Date();
 let BOT_NAME;
 
+process.env.TZ = 'Europe/Paris'
+
 const DB = new SeismicDB();
 
 const twitter = new Twitter({
