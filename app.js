@@ -42,7 +42,8 @@ twitter.get('account/verify_credentials', {
     if (err) console.log(err);
     else {
         console.log(`Connecté avec succès. -- ${new Date().toString()}`);
-        BOT_NAME = data.name;
+        console.log('Bot Tag: ' + data.screen_name)
+        BOT_NAME = data.screen_name;
     }
 });
 
